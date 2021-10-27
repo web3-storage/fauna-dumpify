@@ -99,6 +99,13 @@ async function faunaDump (faunaKey, outputPath, overrideOptions) {
         }
       },
       async function * stringify (source) {
+        const headers =
+          options.headers?.(collection.value.id) ||
+          Object.keys(data[0]).map(options.headerTransformer).filter(Boolean)
+
+        // header row first
+        yield `${headers.join(',')}`
+
         for await (const page of source) {
           const rawData = page.data.map((d) => ({
             id: d.collection.ref.value.id,
@@ -107,12 +114,14 @@ async function faunaDump (faunaKey, outputPath, overrideOptions) {
           }))
           const data = options.appendData(collection.value.id, rawData)
           const replacer = (_, value) => (value === null ? '' : value)
-          const headers =
-            options.headers?.(collection.value.id) ||
-            Object.keys(data[0]).map(options.headerTransformer).filter(Boolean)
 
+          // Yield new line
+          if (data.length) {
+            yield '\r\n'
+          }
+
+          // Yield new documents
           yield [
-            headers.join(','), // header row first
             ...data.map((row) =>
               headers
                 .map((header) =>
