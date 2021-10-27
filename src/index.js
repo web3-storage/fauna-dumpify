@@ -118,7 +118,7 @@ async function faunaDump (faunaKey, outputPath, overrideOptions) {
           ].join('\r\n')
         }
       },
-      fs.createWriteStream(path.join(outputPath, `${filenameTransformer(collection.value.id)}.csv`))
+      fs.createWriteStream(path.join(outputPath, `${options.filenameTransformer(collection.value.id)}.csv`))
     )
     spinner.succeed()
   }
