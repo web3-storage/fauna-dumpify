@@ -25,7 +25,7 @@ async function * fetchAllDocuments ({ client, endtime, pageSize, collection, lam
                 size: pageSize,
                 after
               }),
-              lambda(q, collection)
+              lambda(q, collection.value.id)
             )
           )
         ),
@@ -46,7 +46,13 @@ async function faunaDump (faunaKey, outputPath, overrideOptions) {
     dataTransformer: (header, data) => data[header],
     appendData: (_, data) => data,
     filenameTransformer: (name) => name,
-    faunaLambda: (q, collection) => q.Lambda(['ref'], q.Get(q.Var('ref'))),
+    // Should return an object with collection and relations properties, which will be flatted
+    faunaLambda: (q, collection) => q.Lambda(['ref'], q.Let({
+      collection: q.Get(q.Var('ref'))
+    }, {
+      collection: q.Var('collection'),
+      relations: {}
+    })),
     ...overrideOptions
   }
 
@@ -95,8 +101,9 @@ async function faunaDump (faunaKey, outputPath, overrideOptions) {
       async function * stringify (source) {
         for await (const page of source) {
           const rawData = page.data.map((d) => ({
-            id: d.ref.value.id,
-            ...d.data
+            id: d.collection.ref.value.id,
+            ...d.collection.data,
+            ...d.relations
           }))
           const data = options.appendData(collection.value.id, rawData)
           const replacer = (_, value) => (value === null ? '' : value)
