@@ -45,6 +45,7 @@ async function faunaDump (faunaKey, outputPath, overrideOptions) {
     headerTransformer: (header) => header,
     dataTransformer: (header, data) => data[header],
     appendData: (_, data) => data,
+    filenameTransformer: (name) => name,
     ...overrideOptions
   }
 
@@ -117,7 +118,7 @@ async function faunaDump (faunaKey, outputPath, overrideOptions) {
           ].join('\r\n')
         }
       },
-      fs.createWriteStream(path.join(outputPath, `${collection.value.id}.csv`))
+      fs.createWriteStream(path.join(outputPath, `${filenameTransformer(collection.value.id)}.csv`))
     )
     spinner.succeed()
   }
