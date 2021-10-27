@@ -12,7 +12,7 @@ const q = faunadb.query
 const findAllCollections = async (client) =>
   (await client.query(q.Paginate(q.Collections()))).data
 
-async function * fetchAllDocuments ({ client, endtime, pageSize, collection }) {
+async function * fetchAllDocuments ({ client, endtime, pageSize, collection, lambda }) {
   let after
   do {
     const page = await retry(
@@ -25,7 +25,7 @@ async function * fetchAllDocuments ({ client, endtime, pageSize, collection }) {
                 size: pageSize,
                 after
               }),
-              q.Lambda(['ref'], q.Get(q.Var('ref')))
+              lambda(q, collection)
             )
           )
         ),
@@ -46,6 +46,7 @@ async function faunaDump (faunaKey, outputPath, overrideOptions) {
     dataTransformer: (header, data) => data[header],
     appendData: (_, data) => data,
     filenameTransformer: (name) => name,
+    faunaLambda: (q, collection) => q.Lambda(['ref'], q.Get(q.Var('ref'))),
     ...overrideOptions
   }
 
@@ -81,7 +82,7 @@ async function faunaDump (faunaKey, outputPath, overrideOptions) {
     let count = 0
     spinner.start(`${collection.value.id} ${count}`)
     await pipeline(
-      fetchAllDocuments({ client, endtime, pageSize, collection }),
+      fetchAllDocuments({ client, endtime, pageSize, collection, lambda: options.faunaLambda }),
       async function * logProgress (source) {
         for await (const page of source) {
           yield page
@@ -118,7 +119,7 @@ async function faunaDump (faunaKey, outputPath, overrideOptions) {
           ].join('\r\n')
         }
       },
-      fs.createWriteStream(path.join(outputPath, `${filenameTransformer(collection.value.id)}.csv`))
+      fs.createWriteStream(path.join(outputPath, `${options.filenameTransformer(collection.value.id)}.csv`))
     )
     spinner.succeed()
   }
