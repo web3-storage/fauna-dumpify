@@ -14,6 +14,20 @@ faunaDump(faunaKey, outputPath, {
     }
     return []
   },
+  startPointInTime: new Date('2021-10-22T16:04:50.833940Z'),
+  collectionIndex: (collection) => 'user_sort_by_created_asc',
+  faunaLambda: (q, collection) => q.Lambda(
+    collection === 'User' ? ['time', 'ref'] : ['ref'],
+    q.Let(
+      {
+        collection: q.Get(q.Var('ref'))
+      },
+      {
+        collection: q.Var('collection'),
+        relations: {}
+      }
+    )
+  ),
   dataTransformer: (header, allData, collection) => {
     if (header === 'inserted_at') return allData.created?.value
     if (header === 'updated_at') return allData.created?.value

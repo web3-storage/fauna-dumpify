@@ -12,25 +12,47 @@ const q = faunadb.query
 const findAllCollections = async (client) =>
   (await client.query(q.Paginate(q.Collections()))).data
 
-async function * fetchAllDocuments ({ client, endtime, pageSize, collection, lambda }) {
+async function * fetchAllDocuments ({
+  client,
+  startTime,
+  endTime,
+  collectionIndex,
+  pageSize,
+  collection,
+  lambda
+}) {
   let after
+  let query
   do {
-    const page = await retry(
-      () =>
-        client.query(
-          q.At(
-            q.Time(endtime),
-            q.Map(
-              q.Paginate(q.Documents(collection), {
-                size: pageSize,
-                after
-              }),
-              lambda(q, collection.value.id)
-            )
-          )
+    if (startTime) {
+      query = q.Map(
+        q.Paginate(
+          q.Range(
+            q.Match(q.Index(collectionIndex)),
+            q.Time(startTime),
+            q.Time(endTime)
+          ),
+          {
+            size: pageSize,
+            after
+          }
         ),
-      { forever: true }
-    )
+        lambda(q, collection.value.id)
+      )
+    } else {
+      query = q.At(
+        q.Time(endTime),
+        q.Map(
+          q.Paginate(q.Documents(collection), {
+            size: pageSize,
+            after
+          }),
+          lambda(q, collection.value.id)
+        )
+      )
+    }
+
+    const page = await retry(() => client.query(query), { forever: true, onFailedAttempt: console.error })
 
     after = page.after
     yield page
@@ -47,12 +69,19 @@ async function faunaDump (faunaKey, outputPath, overrideOptions) {
     appendData: (_, data) => data,
     filenameTransformer: (name) => name,
     // Should return an object with collection and relations properties, which will be flatted
-    faunaLambda: (q, collection) => q.Lambda(['ref'], q.Let({
-      collection: q.Get(q.Var('ref'))
-    }, {
-      collection: q.Var('collection'),
-      relations: {}
-    })),
+    faunaLambda: (q, collection) =>
+      q.Lambda(
+        ['ref'],
+        q.Let(
+          {
+            collection: q.Get(q.Var('ref'))
+          },
+          {
+            collection: q.Var('collection'),
+            relations: {}
+          }
+        )
+      ),
     ...overrideOptions
   }
 
@@ -70,10 +99,11 @@ async function faunaDump (faunaKey, outputPath, overrideOptions) {
   }
 
   const collections = await findAllCollections(client)
-  const endtime = options.endPointInTime.toISOString()
+  const startTime = options.startPointInTime?.toISOString?.()
+  const endTime = options.endPointInTime.toISOString()
   const pageSize = Number.parseInt(options.pageSize)
 
-  spinner.info(`Querying DB snapshot at ${endtime}`)
+  spinner.info(`Querying DB snapshot at ${endTime}`)
   spinner.info(`Downloading in batches of ${pageSize}...`)
 
   const collectionsToPick = options.collections.map((c) => c.toUpperCase())
@@ -85,10 +115,21 @@ async function faunaDump (faunaKey, outputPath, overrideOptions) {
     ) {
       continue
     }
+    const collectionIndex = options.collectionIndex(collection.value.id)
+
     let count = 0
     spinner.start(`${collection.value.id} ${count}`)
+
     await pipeline(
-      fetchAllDocuments({ client, endtime, pageSize, collection, lambda: options.faunaLambda }),
+      fetchAllDocuments({
+        client,
+        startTime,
+        endTime,
+        pageSize,
+        collection,
+        collectionIndex,
+        lambda: options.faunaLambda
+      }),
       async function * logProgress (source) {
         for await (const page of source) {
           yield page
@@ -101,7 +142,9 @@ async function faunaDump (faunaKey, outputPath, overrideOptions) {
       async function * stringify (source) {
         const headers =
           options.headers?.(collection.value.id) ||
-          Object.keys(data[0]).map(options.headerTransformer).filter(Boolean)
+          Object.keys(source[0].data[0])
+            .map(options.headerTransformer)
+            .filter(Boolean)
 
         // header row first
         yield `${headers.join(',')}`
@@ -135,7 +178,12 @@ async function faunaDump (faunaKey, outputPath, overrideOptions) {
           ].join('\r\n')
         }
       },
-      fs.createWriteStream(path.join(outputPath, `${options.filenameTransformer(collection.value.id)}.csv`))
+      fs.createWriteStream(
+        path.join(
+          outputPath,
+          `${options.filenameTransformer(collection.value.id)}.csv`
+        )
+      )
     )
     spinner.succeed()
   }

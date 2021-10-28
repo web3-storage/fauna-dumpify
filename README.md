@@ -8,11 +8,13 @@ Usage API:
 faunaDump (key: string, outputPath: string, options?: {
   collections?: Array<string>, // defaults to all collections
   headers?: (collection: string) => Array<string>, // allows you to specify which headers to be sent to the csv file
+  startPointInTime?: Date, // sets the starting point of what documents to filter, use this with `faunaLambda` for better results
   endPointInTime?: Date, // at what point in time are the results valid
   pageSize?: Number, // how many documents to paginate for performance reasons (default: 1000)
   headerTransformer?: (header: string) => string, // allows you to rename headers
   dataTransformer?: (header, data) => data[header], // allows you to make changes to each row data
   appendData?: (_, data) => data, // appends data to each row data
+  faunaLambda?: (faunaQueryBuilder, collection) => faunaQueryBuilder // allows you to modify the fauna query to your own needs
 }): Promise<string>
 ```
 
