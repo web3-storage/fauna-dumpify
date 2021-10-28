@@ -14,7 +14,8 @@ faunaDump (key: string, outputPath: string, options?: {
   headerTransformer?: (header: string) => string, // allows you to rename headers
   dataTransformer?: (header, data) => data[header], // allows you to make changes to each row data
   appendData?: (_, data) => data, // appends data to each row data
-  faunaLambda?: (faunaQueryBuilder, collection) => faunaQueryBuilder // allows you to modify the fauna query to your own needs
+  faunaLambda?: (faunaQueryBuilder, collection), => faunaQueryBuilder // allows you to modify the fauna query to your own needs
+  onCollectionProgress?: (progress) => {} // reports on the progress of each collection fetching process.
 }): Promise<string>
 ```
 

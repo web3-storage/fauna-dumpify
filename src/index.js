@@ -3,7 +3,6 @@ import faunadb from 'faunadb'
 import dotenv from 'dotenv'
 import retry from 'p-retry'
 import path from 'path'
-import ora from 'ora'
 import fs from 'fs'
 
 dotenv.config()
@@ -68,6 +67,7 @@ async function faunaDump (faunaKey, outputPath, overrideOptions) {
     dataTransformer: (header, data) => data[header],
     appendData: (_, data) => data,
     filenameTransformer: (name) => name,
+    onCollectionProgress: () => {},
     // Should return an object with collection and relations properties, which will be flatted
     faunaLambda: (q, collection) =>
       q.Lambda(
@@ -86,25 +86,15 @@ async function faunaDump (faunaKey, outputPath, overrideOptions) {
   }
 
   const client = new faunadb.Client({ secret: faunaKey })
-  console.time('⏱')
-  const spinner = ora('Dumping Fauna Data').start()
 
   if (!fs.existsSync(outputPath)) {
-    spinner.start(`➕ Creating directory ${outputPath}`)
     fs.mkdirSync(outputPath)
-    spinner.stopAndPersist({
-      symbol: '➕',
-      text: `Created ${outputPath} directory`
-    })
   }
 
   const collections = await findAllCollections(client)
   const startTime = options.startPointInTime?.toISOString?.()
   const endTime = options.endPointInTime.toISOString()
   const pageSize = Number.parseInt(options.pageSize)
-
-  spinner.info(`Querying DB snapshot at ${endTime}`)
-  spinner.info(`Downloading in batches of ${pageSize}...`)
 
   const collectionsToPick = options.collections.map((c) => c.toUpperCase())
 
@@ -118,7 +108,6 @@ async function faunaDump (faunaKey, outputPath, overrideOptions) {
     const collectionIndex = options.collectionIndex(collection.value.id)
 
     let count = 0
-    spinner.start(`${collection.value.id} ${count}`)
 
     await pipeline(
       fetchAllDocuments({
@@ -134,9 +123,9 @@ async function faunaDump (faunaKey, outputPath, overrideOptions) {
         for await (const page of source) {
           yield page
           count += page.data.length
-          spinner.text = `${collection.value.id} ${count} ${
+          options.onCollectionProgress(`${collection.value.id} ${count} ${
             page?.after ? `after: ${page?.after}` : ''
-          }`
+          }`)
         }
       },
       async function * stringify (source) {
@@ -185,9 +174,7 @@ async function faunaDump (faunaKey, outputPath, overrideOptions) {
         )
       )
     )
-    spinner.succeed()
   }
-  console.timeEnd('⏱')
 }
 
 export default faunaDump
