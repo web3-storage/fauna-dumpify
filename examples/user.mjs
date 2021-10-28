@@ -16,6 +16,7 @@ faunaDump(faunaKey, outputPath, {
   },
   startPointInTime: new Date('2021-10-22T16:04:50.833940Z'),
   collectionIndex: (collection) => 'user_sort_by_created_asc',
+  onCollectionProgress: console.log,
   faunaLambda: (q, collection) => q.Lambda(
     collection === 'User' ? ['time', 'ref'] : ['ref'],
     q.Let(
