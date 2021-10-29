@@ -23,7 +23,7 @@ async function * fetchAllDocuments ({
   let after
   let query
   do {
-    if (startTime) {
+    if (startTime && collectionIndex) {
       query = q.Map(
         q.Paginate(
           q.Range(
